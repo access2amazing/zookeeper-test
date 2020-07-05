@@ -47,6 +47,7 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
         String znode = args[1];
         String filename = args[2];
         String[] exec = new String[args.length - 3];
+        System.arraycopy(args, 3, exec, 0, exec.length);
 
         try {
             new Executor(hostPort, znode, filename, exec).run();
@@ -62,10 +63,12 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
      * @see org.apache.zookeeper.Watcher#process(WatchedEvent)
      * @param event WatchedEvent
      */
+    @Override
     public void process(WatchedEvent event) {
         dataMonitor.process(event);
     }
 
+    @Override
     public void run() {
         try {
             synchronized (this) {
@@ -78,12 +81,11 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
         }
     }
 
+    @Override
     public void closing(int rc) {
         synchronized (this) {
             notifyAll();
         }
-
-
     }
 
     static class StreamWriter extends Thread {
@@ -111,6 +113,7 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
         }
     }
 
+    @Override
     public void exists(byte[] data) {
         if (data == null) {
             if (child != null) {
