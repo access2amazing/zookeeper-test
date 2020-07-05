@@ -1,15 +1,21 @@
 package priv.wxl.zk.example;
 
-import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
+ * A simple example program to use DataMonitor to start and
+ * stop executables based on a znode. The program watches the
+ * specified znode and saves the data that corresponds to the
+ * znode in the filesystem. It also starts the specified program
+ * with the arguments when znode exists and kills
+ * the program if the znode goes away.
  * @author xueli.wang
  * @since 2020/07/02 17:38
  */
@@ -19,19 +25,15 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
 
     private String[] exec;
 
-    private ZooKeeper zk;
+    private Process child;
 
-    Process child;
+    private DataMonitor dataMonitor;
 
-    DataMonitor dataMonitor;
-
-    String znode;
-
-    public Executor(String hostPort, String  znode, String filename, String[] exec)
-            throws KeeperException, IOException {
+    private Executor(String hostPort, String  znode, String filename, String[] exec)
+            throws IOException {
         this.filename = filename;
         this.exec = exec;
-        zk = new ZooKeeper(hostPort, 3000, this);
+        ZooKeeper zk = new ZooKeeper(hostPort, 3000, this);
         dataMonitor = new DataMonitor(zk, znode, null, this);
     }
 
@@ -60,12 +62,10 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
      * @see org.apache.zookeeper.Watcher#process(WatchedEvent)
      * @param event WatchedEvent
      */
-    @Override
     public void process(WatchedEvent event) {
         dataMonitor.process(event);
     }
 
-    @Override
     public void run() {
         try {
             synchronized (this) {
@@ -78,7 +78,6 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
         }
     }
 
-    @Override
     public void closing(int rc) {
         synchronized (this) {
             notifyAll();
@@ -112,7 +111,6 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
         }
     }
 
-    @Override
     public void exists(byte[] data) {
         if (data == null) {
             if (child != null) {
@@ -133,6 +131,13 @@ public class Executor implements Runnable, Watcher, DataMonitor.DataMonitorListe
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+            }
+            try {
+                FileOutputStream fileOutputStream = new FileOutputStream(filename);
+                fileOutputStream.write(data);
+                fileOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
             try {
                 System.out.println("Starting child");

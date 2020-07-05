@@ -17,7 +17,7 @@ public class DataMonitor implements Watcher, AsyncCallback.StatCallback {
     private Watcher chainedWatcher;
     boolean dead;
     private DataMonitorListener listener;
-    byte[] prevData;
+    private byte[] prevData;
 
     public DataMonitor(ZooKeeper zk, String znode, Watcher chainedWatcher, DataMonitorListener listener) {
         this.zk = zk;
@@ -46,7 +46,6 @@ public class DataMonitor implements Watcher, AsyncCallback.StatCallback {
          void  closing(int rc);
     }
 
-    @Override
     public void process(WatchedEvent event) {
         String path = event.getPath();
         if (event.getType() == Event.EventType.None) {
@@ -78,7 +77,6 @@ public class DataMonitor implements Watcher, AsyncCallback.StatCallback {
         }
     }
 
-    @Override
     public void processResult(int rc, String path, Object ctx, Stat stat) {
         boolean exists;
 
@@ -113,7 +111,7 @@ public class DataMonitor implements Watcher, AsyncCallback.StatCallback {
             }
         }
 
-        if ((bytes == null && bytes != prevData)
+        if ((bytes == null && prevData != null)
                 || (bytes != null && !Arrays.equals(prevData, bytes))) {
             listener.exists(bytes);
             prevData = bytes;
