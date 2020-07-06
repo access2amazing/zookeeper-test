@@ -1,8 +1,12 @@
+import org.apache.commons.lang3.StringUtils;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author xueli.wang
@@ -61,5 +65,18 @@ public class Connect2ZooKeeperTest {
         createZooKeeperInstance();
         operateZooKeeper();
         closeZooKeeper();
+    }
+
+    @Test
+    public void testEmptyListStream() {
+        List<String> empty = new ArrayList<>();
+        String temp = "temp";
+        empty.add(temp);
+        System.out.println(empty
+                .stream()
+                .filter(StringUtils::isNotEmpty)
+                .collect(Collectors.toList())
+                .stream()
+                .anyMatch((ele) -> ele.equals(temp)));
     }
 }
