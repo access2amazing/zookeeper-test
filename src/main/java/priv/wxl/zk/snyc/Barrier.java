@@ -22,7 +22,7 @@ public class Barrier extends SyncPrimitive {
 
     private String name;
 
-    private List<String> childPaths = new ArrayList<>();
+    private String childPath;
 
     public Barrier(String address, String root, int size) {
         super(address);
@@ -59,10 +59,9 @@ public class Barrier extends SyncPrimitive {
      */
     public boolean enter() throws KeeperException, InterruptedException {
         String znodeName = root + "/" + name;
-        String childPath = zooKeeper.create(znodeName, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
+        childPath = zooKeeper.create(znodeName, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
                 CreateMode.EPHEMERAL_SEQUENTIAL);
         System.out.println(childPath);
-        childPaths.add(childPath);
         while (true) {
             synchronized (mutex) {
                 List<String> children = zooKeeper.getChildren(root, true);
@@ -76,13 +75,8 @@ public class Barrier extends SyncPrimitive {
     }
 
     public boolean leave() throws KeeperException, InterruptedException {
-        if (childPaths.isEmpty()) {
-            return false;
-        }
-        String childPath = childPaths.get(0);
         zooKeeper.delete(childPath, -1);
         System.out.println(childPath);
-        childPaths.remove(0);
         while (true) {
             synchronized (mutex) {
                 List<String> children = zooKeeper.getChildren(root, true);

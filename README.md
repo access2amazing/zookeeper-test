@@ -101,13 +101,23 @@ Note that this protocol requires the lock holder to consent to releasing the loc
 
 A two-phase commit protocol is an algorithm that lets all clients in a distributed system agree either to commit a transaction or abort.
 
+在两阶段提交协议中，分布式系统中的所有客户端要么同意提交一个事务，要么丢弃一个事务。
+
 In ZooKeeper, you can implement a two-phased commit by having a coordinator create a transaction node, say "/app/Tx", and one child node per participating site, say "/app/Tx/s_i". When coordinator creates the child node, it leaves the content undefined. Once each site involved in the transaction receives the transaction from the coordinator, the site reads each child node and sets a watch. Each site then processes the query and votes "commit" or "abort" by writing to its respective node. Once the write completes, the other sites are notified, and as soon as all sites have all votes, they can decide either "abort" or "commit". Note that a node can decide "abort" earlier if some site votes for "abort".
+
+在ZooKeeper中实现两阶段提交，首先需要创建一个路径为“/app/Tx”的事务节点作为协调器，然后在这个节点之下为每个参与方创建路径为“/app/Tx/s_i”的子节点。当协调器创建子节点的时候，该子节点的数据是undefined的。参与到事务中的参与方一旦收到来自协调者的事务，参与方将读取相应的子节点，并设置watch。之后每个参与方处理事务，将支持“commit”或者“abort”的选票写入到相应的子节点中。一旦写入完成，其他参与方将后收到通知。只要所有的参与方收到了全部的选票，这些参与方能够决定“commit”或者“abort”。值得一提的是，如果一些参与方投了“abort”，节点更早决定“abort”。
 
 An interesting aspect of this implementation is that the only role of the coordinator is to decide upon the group of sites, to create the ZooKeeper nodes, and to propagate the transaction to the corresponding sites. In fact, even propagating the transaction can be done through ZooKeeper by writing it in the transaction node.
 
+这种实现方法有趣的一点是，协调器的唯一作用是组合参与方，创建ZooKeeper节点，并将事务传播到相应的参与方。事实上，甚至事务传播也能通过ZooKeeper写入到事务节点。
+
 There are two important drawbacks of the approach described above. One is the message complexity, which is O(n²). The second is the impossibility of detecting failures of sites through ephemeral nodes. To detect the failure of a site using ephemeral nodes, it is necessary that the site create the node.
 
+以上的实现有两个突出的缺点。一是消息的复杂度达到 $O(n^2)$。二是通过临时节点检测失败的参与方是不可能的。为了使用临时节点检测参与方的失败，需要参与方创建节点。
+
 To solve the first problem, you can have only the coordinator notified of changes to the transaction nodes, and then notify the sites once coordinator reaches a decision. Note that this approach is scalable, but it's is slower too, as it requires all communication to go through the coordinator.
+
+
 
 To address the second problem, you can have the coordinator propagate the transaction to the sites, and have each site creating its own ephemeral node.
 
