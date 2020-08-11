@@ -2,6 +2,85 @@
 
 ## Overview
 
+### ZooKeeper: A Distributed Coordination Service for Distributed Applications
+
+### Design Goals
+
+**ZooKeeper是简单的。**ZooKeeper通过类似标准文件系统的共享层级命名空间使得分布式过程能够进行彼此的协调。命名空间由被被称为znodes的数据注册器组成。ZooKeeper数据被保存在内存中，这意味着ZooKeeper能够做到高吞吐和低延迟。
+
+ZooKeeper的实现重视高性能、高可用性和严格有序访问。高性能意味着ZooKeeper能够被应用到大型的分布式系统，可靠性使得ZooKeeper能够容忍单节点失败，严格排序意味着客户端可以实现复杂的同步原语。
+
+ZooKeeper能够在称为ensemble的一组主机上进行复制。
+
+![ZooKeeper Service](.\src\main\resources\pic\zkservice.jpg)
+
+组成ZooKeeper服务的servers必须相互知道对方的存在。Servers在内存在保存状态信息，在持久化存储中保存事务日志和快照。只要大多数server是可用的，ZooKeeper服务就是可用的。
+
+客户端通过TCP连接到其中一个server，可以发送请求、获取响应、获取监听事件、发送心跳。如果TCP连接被断开，客户端将连接到另一台server。
+
+**ZooKeeper是有序的。**ZooKeeper用数字为每次更新打标，这个数字反映了ZooKeeper事务的顺序。后续操作能够通过这个顺序实现一些高阶的抽象，如同步原语。
+
+**ZooKeeper是快速的**，特别是在读多于写（读写比约10:1）的场景中。
+
+### 数据模型与分层命名空间
+
+ZooKeeper的命名空间与标准文件系统类似。名称是通过/分隔的路径元素序列。ZooKeeper命名空间的每个节点被一个路径标识。
+
+![ZooKeeper's Hierarchical Namespace](.\src\main\resources\pic\zknamespace.jpg)
+
+### 节点与临时节点
+
+与标准文件系统不同的是，ZooKeeper命名空间中的每个节点除了拥有子节点外，还拥有数据。相当于文件也可以是路径的文件系统。ZooKeeper被设计为存储协调数据，包括状态信息、配置、定位信息等，因此每个节点存储的数据量比较小，在byte到kilobyte范围内。
+
+使用znode指代ZooKeeper数据节点。
+
+Znode维护一个状态结构，包括数据改变的版本号，ACL变化和时间戳，以允许缓存验证和协调更新。Znode的数据改变一次会导致版本号递增。客户端请求数据的时候也会收到数据的版本号。
+
+存储在命名空间中的每个znode的数据的读与写是原子的。读将获得该znode的全部数据，写将替换该znode的全部数据。
+
+每个znode维护一个Access Control List（访问控制列表，ACL），用于限制访问权限。
+
+临时znode与创建它的会话同生共死。
+
+### 条件更新与监听器
+
+客户端可以在znode设置一个监听器。当znode改变的时候，监听器将被触发或i在移除。当监听器被触发的时候，客户端将会收到一个告知znode改变的数据包。如果客户端与zookeeper server的连接被断开，客户端将收到一个本地通知。
+New in 3.6.0: Clients can also set permanent, recursive watches on a znode that are not removed when triggered and that trigger for changes on the registered znode as well as any children znodes recursively.
+
+### Guarantees
+
+- Sequential Consistency
+  来自客户端的更新将根据这些更新发送的顺序被接收
+- Atomicity
+  更新要么全部成功，要么全部失败，不会出现部分成功，部分失败
+- Single System Image
+  无论连接到哪个zookeeper server，客户端看到的zookeeper服务的数据都是一致的
+- Reliability 
+  一旦一个更新被成功执行，这个更新将持续到下一次来自客户端的更新
+- Timeliness
+  确保系统的客户端视图在特定时间范围内是最新的。
+
+### 简单的API
+
+- create
+- delete 
+- exists
+- get data
+- set data 
+- get children
+- sync
+
+### 实现
+
+除了请求处理器之外，构成ZooKeeper服务的每个服务器都复制其自己的每个组件副本。
+
+![ZooKeeper Components](.\src\main\resources\pic\zkcomponents.jpg)
+
+复制的数据库是一个内存数据库，包含了整棵数据树。更新被记录在硬盘中用作数据恢复。写操作在被应用到内存数据库之前会被序列化到硬盘中。
+每个ZooKeeper服务器都能对客户端服务。客户端连接到其中一个服务器进而提交请求。每个server的数据库能够响应读请求。改变服务状态的请求、写请求由一致性协议处理。
+作为一致性协议的一部分，来自客户端的所有写请求被转发到一个称为leader的server上。其余的server被称为follower，接收来自leader的消息，并进行同步。Messaging层负责leader失败时替换以及follower与leader的同步。
+ZooKeeper使用定制的原子messaging协议。由于messaging层是原子的，ZooKeeper可以确保本地副本永远不会发散。当leader接收到一个写请求时，计算要应用写操作时系统的状态，并将其转换为描述该新状态的事务。+
+
 ## Developer
 
 ### ZooKeeper Recipes and Solutions
@@ -117,15 +196,23 @@ There are two important drawbacks of the approach described above. One is the me
 
 To solve the first problem, you can have only the coordinator notified of changes to the transaction nodes, and then notify the sites once coordinator reaches a decision. Note that this approach is scalable, but it's is slower too, as it requires all communication to go through the coordinator.
 
-
+为了解决第一个问题，事务子节点变化时只通知协调器，协调器做出决定后再通知各个参与方。值得注意的是，请注意，这种方法是可扩展的，但它也较慢，因为它要求所有通信都通过协调器。
 
 To address the second problem, you can have the coordinator propagate the transaction to the sites, and have each site creating its own ephemeral node.
+
+为了解决第二个问题，需要协调者将事务传播给各个参与方，每个参与方创建自己的临时节点。
 
 ##### Leader Election
 
 A simple way of doing leader election with ZooKeeper is to use the **SEQUENCE|EPHEMERAL** flags when creating znodes that represent "proposals" of clients. The idea is to have a znode, say "/election", such that each znode creates a child znode "/election/guid-n_" with both flags SEQUENCE|EPHEMERAL. With the sequence flag, ZooKeeper automatically appends a sequence number that is greater than any one previously appended to a child of "/election". The process that created the znode with the smallest appended sequence number is the leader.
 
+在ZooKeeper中，实现leader选举的简单方式是创建代表客户端“提议”的有序临时节点。首先创建名为"/election"的节点，在这个节点下面创建名为"/election/guid-n_"的有序临时节点。当设置为有序时，ZooKeeper自动为新加的"/election"子节点附上比之前子节点大的序号。拥有最小序号的子节点即被选举为leader。
+
 That's not all, though. It is important to watch for failures of the leader, so that a new client arises as the new leader in the case the current leader fails. A trivial solution is to have all application processes watching upon the current smallest znode, and checking if they are the new leader when the smallest znode goes away (note that the smallest znode will go away if the leader fails because the node is ephemeral). But this causes a herd effect: upon a failure of the current leader, all other processes receive a notification, and execute getChildren on "/election" to obtain the current list of children of "/election". If the number of clients is large, it causes a spike on the number of operations that ZooKeeper servers have to process. To avoid the herd effect, it is sufficient to watch for the next znode down on the sequence of znodes. If a client receives a notification that the znode it is watching is gone, then it becomes the new leader in the case that there is no smaller znode. Note that this avoids the herd effect by not having all clients watching the same znode.
+
+这并不是全部。重要的是watch leader的失败：当leader失败的时候，新的客户端晋升为新的leader。一个简单的解决方案是所有的客户端watch当前最小的子节点，当最小的子节点消失的时候检查自己是不是新的leader（注：由于子节点是临时的，当leader失败的时候，最小的子节点将会消失）。但是这会导致羊群效应：当leader失败的时候，其他的所有客户端将会收到通知，然后同时在"/election"节点上执行getChildren 。为了避免羊群效应，比较有效的办法是由离leader最近的客户端负责watch。如果收到leader对应的子节点消失的通知，该客户端自动变成新的leader。
+
+**避免羊群效应的办法是避免让大量的客户端watch相同的znode**
 
 Here's the pseudo code:
 
@@ -141,7 +228,22 @@ Upon receiving a notification of znode deletion:
 2. If z is the smallest node in C, then execute leader procedure;
 3. Otherwise, watch for changes on "ELECTION/guid-n_j", where j is the largest sequence number such that j < i and n_j is a znode in C;
 
+伪代码如下：
+
+/ELECTION作为选举路径。 选举leader：
+
+1. 创建路径为"ELECTION/guid-n_"的有序临时节点z
+2. 定义C为"ELECTION"的孩子集合，i为z的序号
+3. 遍历C，当j是C中i最小的序号时，ELECTION/guid-n_j为leader，设置watch，观察变化
+
+当收到znode被删除的通知时：
+
+1. 定义C为"ELECTION"的孩子集合
+2. 如果z是C中最小的节点，则选举为leader
+3. 否则遍历C，当j是C中i最小的序号时，ELECTION/guid-n_j为leader，设置watch，观察变化
+
 Notes:
 
 - Note that the znode having no preceding znode on the list of children do not imply that the creator of this znode is aware that it is the current leader. Applications may consider creating a separate znode to acknowledge that the leader has executed the leader procedure.
+- 注意，在子节点集合中，没有前序节点的znode并不表示此znode对应的客户端知道它是当前的leader。 应用程序可以考虑创建一个单独的znode来确认leader已经执行了leader过程。
 - See the [note for Locks](https://zookeeper.apache.org/doc/current/recipes.html#sc_recipes_GuidNote) on how to use the guid in the node.
