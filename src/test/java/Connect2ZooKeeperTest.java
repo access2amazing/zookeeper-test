@@ -23,12 +23,7 @@ public class Connect2ZooKeeperTest {
 
     private static final String ZK_NODE_FOR_TEST = "/test";
 
-    private Watcher watcher = new Watcher() {
-        @Override
-        public void process(WatchedEvent watchedEvent) {
-            System.out.println("watchedEvent >>> " + watchedEvent.toString());
-        }
-    };
+    private Watcher watcher = (watchedEvent) -> System.out.println("watchedEvent >>> " + watchedEvent.toString());
 
     private void createZooKeeperInstance() throws IOException {
         zooKeeper = new ZooKeeper("localhost:2181,localhost:2182,localhost:2183", SESSION_TIMEOUT, watcher);
