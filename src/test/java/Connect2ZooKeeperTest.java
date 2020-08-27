@@ -6,6 +6,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -73,5 +74,28 @@ public class Connect2ZooKeeperTest {
                 .collect(Collectors.toList())
                 .stream()
                 .anyMatch((ele) -> ele.equals(temp)));
+    }
+
+    @Test
+    public void testStreamCollect() {
+        List<Double> doubles = new ArrayList<>();
+        doubles.add(2.7D);
+        System.out.println(doubles.stream()
+                // 推荐车长(double)乘以10转换为整数(int)得到车长编码
+                .map((length) -> length * 10)
+                .map(Double::intValue)
+                // 根据车长编码字典过滤推荐车长
+                .filter(this::filterTruckLengthByDictionary)
+                .map(Objects::toString)
+                // 组装为英文逗号隔开的String
+                .collect(Collectors.joining(",")));
+    }
+
+    private boolean filterTruckLengthByDictionary(Integer truckLength) {
+        List<Integer> integers = new ArrayList<>();
+        integers.add(18);
+        integers.add(27);
+        return integers.stream()
+                .anyMatch(dictionaryTruckLength -> dictionaryTruckLength.equals(truckLength));
     }
 }
