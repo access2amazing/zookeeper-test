@@ -7,7 +7,6 @@ import org.apache.zookeeper.data.Stat;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
